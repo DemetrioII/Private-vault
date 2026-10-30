@@ -65,12 +65,12 @@ Result<Vault> Vault::create(const std::filesystem::path &path,
   }
 
   auto io = std::move(*io_res);
-  auto resize_res =
-      io.resize(static_cast<std::uint64_t>(capacity) * block_size);
-  if (!resize_res) {
-    return std::unexpected(resize_res.error());
-  }
 
+  auto allocate_res =
+      io.allocate(static_cast<std::uint64_t>(capacity) * block_size);
+
+  if (!allocate_res)
+    return std::unexpected(allocate_res.error());
   return Vault(std::move(io), capacity);
 }
 

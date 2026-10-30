@@ -141,3 +141,24 @@ core::Result<void> FileIO::resize(uint64_t new_size) {
 
   return {};
 }
+
+core::Result<void> FileIO::allocate(std::uint64_t new_size) {
+  if (!is_open()) {
+    return std::unexpected(make_error(ErrorCode::IoError, "file not found"));
+  }
+
+  if (new_size >
+      static_cast<std::uint64_t>(std::numeric_limits<off_t>::max())) {
+    return std::unexpected(
+        make_error(ErrorCode::InvalidArgument, "file size is too large"));
+  }
+
+  const int rc = ::posix_fallocate(fd_, 0, static_cast<off_t>(new_size));
+
+  if (rc != 0) {
+    return std::unexpected(
+        make_error(ErrorCode::IoError, "posix_fallocate failed"));
+  }
+
+  return {};
+}

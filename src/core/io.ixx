@@ -34,6 +34,7 @@ public:
                               std::span<const std::byte> in);
   core::Result<std::uint64_t> size() const;
   core::Result<void> resize(std::uint64_t);
+  core::Result<void> allocate(std::uint64_t);
 
   bool is_open() const noexcept { return fd_ >= 0; }
 
