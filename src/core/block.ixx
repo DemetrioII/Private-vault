@@ -1,7 +1,9 @@
 module;
 
 #include <cstddef>
+#include <cstdint>
 #include <span>
+#include <vector>
 
 export module core.block;
 
@@ -30,5 +32,26 @@ public:
 
 private:
   core::io::FileIO *io_;
+};
+
+class BlockAllocator {
+  std::vector<std::uint8_t> bitmap_;
+  std::size_t free_blocks_;
+
+public:
+  BlockAllocator(std::size_t capacity);
+
+  static Result<BlockAllocator>
+  from_bitmap(std::span<const std::uint8_t> bitmap);
+
+  Result<std::vector<std::uint64_t>> allocate(std::size_t count);
+
+  Result<void> release(std::span<const std::uint64_t> blocks);
+
+  Result<void> mark_used(std::span<const std::uint64_t> blocks);
+
+  std::span<const std::uint8_t> bitmap() const noexcept;
+  std::size_t capacity() const noexcept;
+  std::size_t free_blocks() const noexcept;
 };
 } // namespace core::block

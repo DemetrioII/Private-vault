@@ -1,6 +1,6 @@
 module;
 
-#include <string_view>
+#include <string>
 
 export module core.error;
 
@@ -19,7 +19,7 @@ enum class ErrorCode {
 
 struct Error {
   ErrorCode code = ErrorCode::Unknown;
-  std::string_view message = {};
+  std::string message{};
 };
 
 constexpr bool is_ok(const Error &e) noexcept {

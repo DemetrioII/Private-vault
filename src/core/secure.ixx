@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <cstring>
 #include <sodium.h>
+#include <span>
 
 #if defined(_MSC_VER)
 #include <intrin.h>
@@ -79,6 +80,10 @@ public:
 
   unsigned char *data() { return buffer.data(); }
   const unsigned char *data() const { return buffer.data(); }
+
+  const std::span<unsigned char const> span() const { return buffer; }
+
+  std::span<unsigned char> span() { return buffer; }
 
   static constexpr std::size_t size() { return N; }
 
