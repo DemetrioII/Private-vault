@@ -14,6 +14,10 @@ add_library(vault_core
 			src/block_allocator.cpp
 			src/block_device.cpp
 			src/file_table.cpp
+			src/file_io.cpp
+			src/securebuffer.cpp
+			src/vault.cpp
+			src/crypto.cpp
 )
 
 set(CMAKE_CXX_FLAGS "-std=c++26")

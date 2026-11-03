@@ -32,6 +32,8 @@ BlockAllocator::allocate(std::size_t count) {
   return blocks;
 }
 
+
+
 std::expected<void, BlockAllocatorError>
 BlockAllocator::release(const std::vector<std::size_t> &blocks) {
   for (const auto index : blocks) {

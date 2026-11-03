@@ -112,4 +112,21 @@ TEST_F(VaultTest, AddSameFileTwiceUsesMoreBlocks) {
   EXPECT_TRUE(vault.add_file(path).has_value());
 }
 
+TEST_F(VaultTest, InitSucceedsWithPassword) {
+  Vault vault(block_size * 4);
+  SecureBuffer password(16, 'p');
+
+  auto result = vault.init(password);
+
+  EXPECT_TRUE(result.has_value());
+}
+
+TEST_F(VaultTest, InitIsRepeatable) {
+  Vault vault(block_size * 4);
+  SecureBuffer password(16, 'q');
+
+  EXPECT_TRUE(vault.init(password).has_value());
+  EXPECT_TRUE(vault.init(password).has_value());
+}
+
 } // namespace
