@@ -2,6 +2,7 @@
 
 #include <vault.hpp>
 
+#include <array>
 #include <cstdint>
 #include <ctime>
 #include <filesystem>
@@ -12,6 +13,12 @@
 namespace fs = std::filesystem;
 
 namespace {
+
+constexpr std::size_t kUsablePerBlock = block_payload_size - block_tag_size;
+
+SecureBuffer make_key(unsigned char fill = 0x42) {
+  return SecureBuffer(crypto_aead_xchacha20poly1305_ietf_KEYBYTES, fill);
+}
 
 class VaultTest : public ::testing::Test {
 protected:
@@ -43,7 +50,16 @@ protected:
 };
 
 TEST_F(VaultTest, AddEmptyFile) {
-  Vault vault(block_size);
+  Vault vault(block_size, make_key());
+  auto path = make_file("empty.bin", {});
+
+  auto result = vault.add_file(path);
+
+  EXPECT_TRUE(result.has_value());
+}
+
+TEST_F(VaultTest, AddEmptyFileWithZeroCapacity) {
+  Vault vault(0, make_key());
   auto path = make_file("empty.bin", {});
 
   auto result = vault.add_file(path);
@@ -52,7 +68,7 @@ TEST_F(VaultTest, AddEmptyFile) {
 }
 
 TEST_F(VaultTest, AddSmallFile) {
-  Vault vault(block_size * 4);
+  Vault vault(block_size, make_key());
   std::vector<unsigned char> data{1, 2, 3, 4, 5, 6, 7, 8};
   auto path = make_file("small.bin", data);
 
@@ -62,8 +78,8 @@ TEST_F(VaultTest, AddSmallFile) {
 }
 
 TEST_F(VaultTest, AddFileExactlyOneBlock) {
-  Vault vault(block_size * 2);
-  std::vector<unsigned char> data(block_payload_size, 0x5A);
+  Vault vault(block_size, make_key());
+  std::vector<unsigned char> data(kUsablePerBlock, 0x5A);
   auto path = make_file("block.bin", data);
 
   auto result = vault.add_file(path);
@@ -72,8 +88,8 @@ TEST_F(VaultTest, AddFileExactlyOneBlock) {
 }
 
 TEST_F(VaultTest, AddFileLargerThanOneBlock) {
-  Vault vault(block_size * 4);
-  std::vector<unsigned char> data(block_payload_size + 123, 0x33);
+  Vault vault(block_size * 2, make_key());
+  std::vector<unsigned char> data(kUsablePerBlock + 123, 0x33);
   auto path = make_file("multi.bin", data);
 
   auto result = vault.add_file(path);
@@ -82,10 +98,10 @@ TEST_F(VaultTest, AddFileLargerThanOneBlock) {
 }
 
 TEST_F(VaultTest, AddMultipleFiles) {
-  Vault vault(block_size * 8);
+  Vault vault(block_size * 4, make_key());
   auto path1 = make_file("a.bin", std::vector<unsigned char>{1, 2, 3});
-  auto path2 = make_file("b.bin", std::vector<unsigned char>(block_payload_size, 0xFF));
-  auto path3 = make_file("c.bin", std::vector<unsigned char>(block_payload_size + 1, 0x0F));
+  auto path2 = make_file("b.bin", std::vector<unsigned char>(kUsablePerBlock, 0xFF));
+  auto path3 = make_file("c.bin", std::vector<unsigned char>(kUsablePerBlock + 1, 0x0F));
 
   EXPECT_TRUE(vault.add_file(path1).has_value());
   EXPECT_TRUE(vault.add_file(path2).has_value());
@@ -93,8 +109,8 @@ TEST_F(VaultTest, AddMultipleFiles) {
 }
 
 TEST_F(VaultTest, AddFileWhenNotEnoughMemory) {
-  Vault vault(block_size);
-  std::vector<unsigned char> data(block_payload_size + 1, 0x7E);
+  Vault vault(block_size, make_key());
+  std::vector<unsigned char> data(kUsablePerBlock + 1, 0x7E);
   auto path = make_file("big.bin", data);
 
   auto result = vault.add_file(path);
@@ -104,16 +120,34 @@ TEST_F(VaultTest, AddFileWhenNotEnoughMemory) {
 }
 
 TEST_F(VaultTest, AddSameFileTwiceUsesMoreBlocks) {
-  Vault vault(block_size * 4);
-  std::vector<unsigned char> data(block_payload_size, 0xA5);
+  Vault vault(block_size * 2, make_key());
+  std::vector<unsigned char> data(kUsablePerBlock, 0xA5);
   auto path = make_file("dup.bin", data);
 
   EXPECT_TRUE(vault.add_file(path).has_value());
   EXPECT_TRUE(vault.add_file(path).has_value());
 }
 
+TEST_F(VaultTest, AddFileRejectsWrongKeySize) {
+  const std::array<std::size_t, 2> key_sizes{
+      crypto_aead_xchacha20poly1305_ietf_KEYBYTES - 1,
+      crypto_aead_xchacha20poly1305_ietf_KEYBYTES + 1,
+  };
+
+  for (const auto key_size : key_sizes) {
+    Vault vault(block_size, SecureBuffer(key_size, 0x11));
+    auto path = make_file("key_" + std::to_string(key_size) + ".bin",
+                          std::vector<unsigned char>{1, 2, 3});
+
+    auto result = vault.add_file(path);
+
+    ASSERT_FALSE(result.has_value()) << "key size = " << key_size;
+    EXPECT_EQ(result.error(), VaultError::CryptoError);
+  }
+}
+
 TEST_F(VaultTest, InitSucceedsWithPassword) {
-  Vault vault(block_size * 4);
+  Vault vault(block_size * 4, make_key());
   SecureBuffer password(16, 'p');
 
   auto result = vault.init(password);
@@ -122,7 +156,7 @@ TEST_F(VaultTest, InitSucceedsWithPassword) {
 }
 
 TEST_F(VaultTest, InitIsRepeatable) {
-  Vault vault(block_size * 4);
+  Vault vault(block_size * 4, make_key());
   SecureBuffer password(16, 'q');
 
   EXPECT_TRUE(vault.init(password).has_value());

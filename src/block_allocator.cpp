@@ -64,5 +64,5 @@ BlockAllocator::release(const std::vector<std::size_t> &blocks) {
 }
 
 bool BlockAllocator::has_enough_memory(std::size_t capacity) const {
-  return free_blocks_ * block_payload_size >= capacity;
+  return free_blocks_ * (block_payload_size - block_tag_size) >= capacity;
 }

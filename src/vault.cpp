@@ -1,7 +1,8 @@
 #include <fstream>
 #include <vault.hpp>
 
-Vault::Vault(std::size_t capacity) : capacity_(capacity), block_device_(capacity) {}
+Vault::Vault(std::size_t capacity, SecureBuffer &&generated_key)
+    : capacity_(capacity), block_device_(capacity), key_(std::move(generated_key)) {}
 
 std::expected<void, VaultError> Vault::add_file(std::filesystem::path &path) {
   const auto fs = std::filesystem::file_size(path);
@@ -23,10 +24,14 @@ std::expected<void, VaultError> Vault::add_file(std::filesystem::path &path) {
     return std::unexpected(VaultError::FileOpenError);
   }
 
-  std::vector<unsigned char> buffer(block_payload_size);
+  std::vector<unsigned char> buffer(block_payload_size - block_tag_size);
+  std::vector<unsigned char> encrypted(block_payload_size);
+
+  std::array<unsigned char, block_nonce_size> nonce;
 
   for (std::size_t i = 0; i < entry.blocks.size(); ++i) {
-    input.read(reinterpret_cast<char *>(buffer.data()), static_cast<std::streamsize>(block_payload_size));
+    input.read(reinterpret_cast<char *>(buffer.data()),
+               static_cast<std::streamsize>(block_payload_size - block_tag_size));
 
     const auto bytes_read = input.gcount();
 
@@ -34,12 +39,22 @@ std::expected<void, VaultError> Vault::add_file(std::filesystem::path &path) {
       return std::unexpected(VaultError::FileReadError);
     }
 
-    if (bytes_read < block_payload_size) {
-      for (std::size_t i = bytes_read; i < block_payload_size; ++i)
+    randombytes_buf(nonce.data(), nonce.size());
+
+    if (bytes_read < static_cast<std::streamsize>(buffer.size())) {
+      for (std::size_t i = static_cast<std::size_t>(bytes_read); i < buffer.size(); ++i)
         buffer[i] = 0;
     }
 
-    auto result = block_device_.write_file_block(std::span(buffer.data(), block_payload_size), file_id, i + 1);
+    {
+      auto result = CryptoEngine::encrypt(buffer, key_.span(), nonce, std::nullopt, encrypted);
+
+      if (!result) {
+        return std::unexpected(VaultError::CryptoError);
+      }
+    }
+
+    auto result = block_device_.write_file_block(std::span(encrypted.data(), block_payload_size), file_id, i + 1);
 
     if (!result) {
       return std::unexpected(VaultError::BlockDeviceWriteError);

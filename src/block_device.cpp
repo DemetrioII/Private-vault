@@ -1,18 +1,17 @@
 #include <block_device.hpp>
 
 BlockDevice::BlockDevice(std::size_t capacity)
-    : capacity_(capacity),
-      allocator_((capacity + block_size - 1) / block_size) {
+    : capacity_(capacity), allocator_((capacity + block_size - 1) / block_size) {
   blocks_.resize((capacity + block_size - 1) / block_size);
   for (size_t i = 0; i < blocks_.size(); ++i) {
     blocks_.at(i).physical_index = i;
   }
 }
 
-std::expected<std::vector<std::size_t>, BlockDeviceError>
-BlockDevice::allocate(std::size_t file_size, std::size_t file_id) {
+std::expected<std::vector<std::size_t>, BlockDeviceError> BlockDevice::allocate(std::size_t file_size,
+                                                                                std::size_t file_id) {
   std::size_t blocks_to_need =
-      (file_size + block_payload_size - 1) / block_payload_size;
+      (file_size + block_payload_size - block_tag_size - 1) / (block_payload_size - block_tag_size);
   const auto block_idxs = allocator_.allocate(blocks_to_need);
   if (!block_idxs.has_value()) {
     return std::unexpected(BlockDeviceError::NoEnoughMemory);
@@ -34,8 +33,7 @@ offset += std::min(block_size, file.size() - offset); */
   return *block_idxs;
 }
 
-std::expected<void, BlockDeviceError>
-BlockDevice::remove_file(std::size_t index) {
+std::expected<void, BlockDeviceError> BlockDevice::remove_file(std::size_t index) {
   if (index == 0)
     return {};
   std::vector<std::size_t> blocks_to_free;
@@ -56,18 +54,15 @@ BlockDevice::remove_file(std::size_t index) {
   return {};
 }
 
-std::expected<void, BlockDeviceError>
-BlockDevice::write_file_block(std::span<unsigned char> file_block,
-                              std::size_t file_id, std::size_t index) {
+std::expected<void, BlockDeviceError> BlockDevice::write_file_block(std::span<unsigned char> file_block,
+                                                                    std::size_t file_id, std::size_t index) {
   if (file_block.size() != block_payload_size) {
     return std::unexpected(BlockDeviceError::InvalidBlockSize);
   }
 
   for (std::size_t i = 0; i < blocks_.size(); ++i) {
-    if (blocks_.at(i).file_id == file_id &&
-        blocks_.at(i).logical_index == index) {
-      std::memcpy(blocks_.at(i).payload.data(), file_block.data(),
-                  file_block.size());
+    if (blocks_.at(i).file_id == file_id && blocks_.at(i).logical_index == index) {
+      std::memcpy(blocks_.at(i).payload.data(), file_block.data(), file_block.size());
       return {};
     }
   }
@@ -75,6 +70,4 @@ BlockDevice::write_file_block(std::span<unsigned char> file_block,
   return std::unexpected(BlockDeviceError::BlockNotFound);
 }
 
-bool BlockDevice::has_enough_memory(std::size_t capacity) {
-  return allocator_.has_enough_memory(capacity);
-}
+bool BlockDevice::has_enough_memory(std::size_t capacity) { return allocator_.has_enough_memory(capacity); }

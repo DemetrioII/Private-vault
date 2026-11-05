@@ -12,6 +12,8 @@ std::set<std::size_t> to_set(const std::vector<std::size_t> &values) {
   return std::set<std::size_t>(values.begin(), values.end());
 }
 
+constexpr std::size_t kUsablePerBlock = block_payload_size - block_tag_size;
+
 class BlockAllocatorTest : public ::testing::Test {
 protected:
   static constexpr std::size_t kCapacity = 8;
@@ -107,9 +109,9 @@ TEST_F(BlockAllocatorTest, ReleaseDuplicateIndicesFails) {
   EXPECT_EQ(result.error(), BlockAllocatorError::DuplicateIndices);
 }
 
-TEST_F(BlockAllocatorTest, HasEnoughMemoryUsesPayloadBytes) {
-  EXPECT_TRUE(allocator_.has_enough_memory(kCapacity * block_payload_size));
-  EXPECT_FALSE(allocator_.has_enough_memory(kCapacity * block_payload_size + 1));
+TEST_F(BlockAllocatorTest, HasEnoughMemoryUsesUsableBytes) {
+  EXPECT_TRUE(allocator_.has_enough_memory(kCapacity * kUsablePerBlock));
+  EXPECT_FALSE(allocator_.has_enough_memory(kCapacity * kUsablePerBlock + 1));
 }
 
 TEST_F(BlockAllocatorTest, HasEnoughMemoryTracksPartialRelease) {
@@ -118,8 +120,8 @@ TEST_F(BlockAllocatorTest, HasEnoughMemoryTracksPartialRelease) {
   ASSERT_TRUE(allocated.has_value());
   ASSERT_TRUE(allocator_.release(*allocated).has_value());
 
-  EXPECT_TRUE(allocator_.has_enough_memory(4 * block_payload_size));
-  EXPECT_FALSE(allocator_.has_enough_memory(5 * block_payload_size));
+  EXPECT_TRUE(allocator_.has_enough_memory(4 * kUsablePerBlock));
+  EXPECT_FALSE(allocator_.has_enough_memory(5 * kUsablePerBlock));
 }
 
 TEST_F(BlockAllocatorTest, HasEnoughMemoryAfterFullAllocationIsFalse) {
