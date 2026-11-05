@@ -77,9 +77,12 @@ CryptoEngine::derive_key(std::span<unsigned char const> password,
     return std::unexpected(CryptoError::KeyDerivationError);
   }
 
+  unsigned char empty_password = 0;
+  const unsigned char *password_data = password.empty() ? &empty_password : password.data();
+
   const int result =
       crypto_pwhash(key, key_size,
-                    reinterpret_cast<const char *>(password.data()),
+                    reinterpret_cast<const char *>(password_data),
                     password.size(), salt.data(), crypto_pwhash_OPSLIMIT_MODERATE,
                     crypto_pwhash_MEMLIMIT_MODERATE,
                     crypto_pwhash_ALG_ARGON2ID13);

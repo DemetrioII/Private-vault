@@ -7,6 +7,41 @@ project(my_vault_proj LANGUAGES CXX)
 # set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+option(ENABLE_HARDENING "Enable compiler hardening flags" ON)
+option(ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+
+if(ENABLE_HARDENING)
+	add_compile_options(
+		-fstack-protector-strong
+		-fstack-clash-protection
+		-fcf-protection=full
+		-ftrivial-auto-var-init=zero
+		-Wconversion
+		-Wsign-conversion
+	)
+
+	add_compile_definitions(_GLIBCXX_ASSERTIONS)
+
+	add_link_options(
+		-Wl,-z,relro
+		-Wl,-z,now
+	)
+
+	if(CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+		add_compile_options(-fhardened)
+	endif()
+endif()
+
+if(ENABLE_SANITIZERS)
+	add_compile_options(
+		-fsanitize=address,undefined
+		-fno-sanitize-recover=all
+		-fno-omit-frame-pointer
+	)
+
+	add_link_options(-fsanitize=address,undefined)
+endif()
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SODIUM REQUIRED libsodium)
 
@@ -54,19 +89,6 @@ target_include_directories(vault
 	$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
 	${SODIUM_INCLUDE_DIRS}
 )
-endif()
-
-option(ENABLE_SANITIZERS "Enable sanitizers" OFF)
-
-if(ENABLE_SANITIZERS)
-	add_compile_options(
-		-fsanitize=undefined
-		-fno-omit-frame-pointer
-	)
-
-	add_link_options(
-		-fsanitize=address,undefined
-	)
 endif()
 
 enable_testing()

@@ -17,8 +17,7 @@ std::expected<std::vector<std::size_t>, BlockDeviceError> BlockDevice::allocate(
     return std::unexpected(BlockDeviceError::NoEnoughMemory);
   }
 
-  int k = 0;
-  std::size_t offset = 0;
+  std::size_t offset = 0, k = 0;
 
   for (const auto &idx : *block_idxs) {
     blocks_.at(idx).physical_index = idx;

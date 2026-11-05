@@ -2,14 +2,12 @@
 #include <block_allocator.hpp>
 #include <set>
 
-BlockAllocator::BlockAllocator(std::size_t capacity)
-    : free_blocks_(capacity), capacity_(capacity) {
+BlockAllocator::BlockAllocator(std::size_t capacity) : free_blocks_(capacity), capacity_(capacity) {
   bitmap_.reserve((capacity + 7) / 8);
   bitmap_.resize((capacity + 7) / 8);
 }
 
-std::expected<std::vector<std::size_t>, BlockAllocatorError>
-BlockAllocator::allocate(std::size_t count) {
+std::expected<std::vector<std::size_t>, BlockAllocatorError> BlockAllocator::allocate(std::size_t count) {
   if (free_blocks_ < count) {
     return std::unexpected(BlockAllocatorError::NoEnoughMemory);
   }
@@ -19,9 +17,14 @@ BlockAllocator::allocate(std::size_t count) {
 
   int k = 0;
 
-  for (int i = 0; i < capacity_ && k < count; ++i) {
-    if ((bitmap_[i / 8] >> (i % 8) & 1) == 0) {
-      bitmap_[i / 8] |= (1 << (i % 8));
+  for (size_t i = 0; i < capacity_ && k < count; ++i) {
+    const std::size_t byte_index = i / 8;
+    const std::size_t bit_index = i % 8;
+
+    const auto mask = static_cast<unsigned char>(1u << bit_index);
+
+    if ((bitmap_[byte_index] & mask) == 0) {
+      bitmap_[byte_index] |= mask;
       blocks.push_back(i);
       ++k;
     }
@@ -32,13 +35,9 @@ BlockAllocator::allocate(std::size_t count) {
   return blocks;
 }
 
-
-
-std::expected<void, BlockAllocatorError>
-BlockAllocator::release(const std::vector<std::size_t> &blocks) {
+std::expected<void, BlockAllocatorError> BlockAllocator::release(const std::vector<std::size_t> &blocks) {
   for (const auto index : blocks) {
-    if (index < 0 || index >= capacity_ ||
-        !(bitmap_[index / 8] >> (index % 8) & 1)) {
+    if (index < 0 || index >= capacity_ || !(bitmap_[index / 8] >> (index % 8) & 1)) {
       return std::unexpected(BlockAllocatorError::ReleaseError);
     }
   }
@@ -57,7 +56,7 @@ BlockAllocator::release(const std::vector<std::size_t> &blocks) {
   free_blocks_ += blocks.size();
 
   for (const auto index : blocks) {
-    bitmap_[index / 8] &= ~(1u << (index % 8));
+    bitmap_[index / 8] &= static_cast<unsigned char>(~(1u << (index % 8)));
   }
 
   return {};
