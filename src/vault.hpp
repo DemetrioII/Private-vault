@@ -9,11 +9,14 @@ enum class VaultError {
   NoEnoughMemory,
   FileOpenError,
   FileReadError,
+  FileWriteError,
   BlockDeviceWriteError,
   CryptoError,
   KDF_Error,
   FileNotFound,
   BlockDeviceDeallocError,
+  InvalidFormat,
+  WrongPassword,
 };
 
 constexpr std::array<unsigned char, 5> magic_word{};
@@ -33,6 +36,16 @@ public:
 
   std::expected<void, VaultError> init(const SecureBuffer &);
 
-  std::expected<void, VaultError> add_file(std::filesystem::path &path);
+  static std::expected<Vault, VaultError>
+  create(const std::filesystem::path &path, std::size_t capacity,
+         const SecureBuffer &password);
+
+  static std::expected<Vault, VaultError>
+  open(const std::filesystem::path &path, const SecureBuffer &password);
+
+  std::expected<void, VaultError> save(const std::filesystem::path &path) const;
+
+  std::expected<std::size_t, VaultError>
+  add_file(const std::filesystem::path &path);
   std::expected<void, VaultError> remove_file(std::size_t file_id);
 };

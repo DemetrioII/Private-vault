@@ -4,6 +4,7 @@ add_executable(vault_tests
 	test_block_format.cpp
 	test_crypto.cpp
 	test_file_table.cpp
+	test_persistence.cpp
 	test_securebuffer.cpp
 	test_vault.cpp
 )

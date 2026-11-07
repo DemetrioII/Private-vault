@@ -40,6 +40,7 @@ std::expected<void, BlockDeviceError> BlockDevice::remove_file(std::size_t index
     if (blocks_.at(i).file_id == index) {
       blocks_.at(i).file_id = 0;
       blocks_.at(i).logical_index = 0;
+      blocks_.at(i).nonce.fill(0);
       blocks_.at(i).payload.fill(0);
       blocks_to_free.push_back(i);
     }
@@ -53,14 +54,21 @@ std::expected<void, BlockDeviceError> BlockDevice::remove_file(std::size_t index
   return {};
 }
 
-std::expected<void, BlockDeviceError> BlockDevice::write_file_block(std::span<unsigned char> file_block,
-                                                                    std::size_t file_id, std::size_t index) {
+std::expected<void, BlockDeviceError>
+BlockDevice::write_file_block(std::span<unsigned char> file_block,
+                              std::span<unsigned char const> nonce,
+                              std::size_t file_id, std::size_t index) {
   if (file_block.size() != block_payload_size) {
     return std::unexpected(BlockDeviceError::InvalidBlockSize);
   }
 
+  if (nonce.size() != block_nonce_size) {
+    return std::unexpected(BlockDeviceError::InvalidNonceSize);
+  }
+
   for (std::size_t i = 0; i < blocks_.size(); ++i) {
     if (blocks_.at(i).file_id == file_id && blocks_.at(i).logical_index == index) {
+      std::memcpy(blocks_.at(i).nonce.data(), nonce.data(), nonce.size());
       std::memcpy(blocks_.at(i).payload.data(), file_block.data(), file_block.size());
       return {};
     }
@@ -68,5 +76,42 @@ std::expected<void, BlockDeviceError> BlockDevice::write_file_block(std::span<un
 
   return std::unexpected(BlockDeviceError::BlockNotFound);
 }
+
+std::expected<void, BlockDeviceError> BlockDevice::restore_file_block(
+    std::size_t physical_index, std::size_t logical_index, std::size_t file_id,
+    std::span<unsigned char const> nonce,
+    std::span<unsigned char const> payload) {
+  if (physical_index >= blocks_.size()) {
+    return std::unexpected(BlockDeviceError::BlockNotFound);
+  }
+
+  if (payload.size() != block_payload_size) {
+    return std::unexpected(BlockDeviceError::InvalidBlockSize);
+  }
+
+  if (nonce.size() != block_nonce_size) {
+    return std::unexpected(BlockDeviceError::InvalidNonceSize);
+  }
+
+  auto reserved = allocator_.reserve(physical_index);
+  if (!reserved) {
+    return std::unexpected(BlockDeviceError::BlockAlreadyAllocated);
+  }
+
+  Block &block = blocks_.at(physical_index);
+  block.physical_index = physical_index;
+  block.logical_index = logical_index;
+  block.file_id = file_id;
+  std::memcpy(block.nonce.data(), nonce.data(), nonce.size());
+  std::memcpy(block.payload.data(), payload.data(), payload.size());
+
+  return {};
+}
+
+const Block &BlockDevice::block_at(std::size_t physical_index) const {
+  return blocks_.at(physical_index);
+}
+
+std::size_t BlockDevice::block_count() const { return blocks_.size(); }
 
 bool BlockDevice::has_enough_memory(std::size_t capacity) { return allocator_.has_enough_memory(capacity); }

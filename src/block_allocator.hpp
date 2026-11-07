@@ -4,7 +4,13 @@
 #include <expected>
 #include <vector>
 
-enum class BlockAllocatorError { NoEnoughMemory, ReleaseError, DuplicateIndices };
+enum class BlockAllocatorError {
+  NoEnoughMemory,
+  ReleaseError,
+  DuplicateIndices,
+  InvalidIndex,
+  AlreadyAllocated
+};
 
 class BlockAllocator {
   std::vector<unsigned char> bitmap_;
@@ -17,6 +23,8 @@ public:
   std::expected<std::vector<std::size_t>, BlockAllocatorError> allocate(std::size_t count);
 
   std::expected<void, BlockAllocatorError> release(const std::vector<std::size_t> &blocks);
+
+  std::expected<void, BlockAllocatorError> reserve(std::size_t index);
 
   bool has_enough_memory(std::size_t capacity) const;
 };

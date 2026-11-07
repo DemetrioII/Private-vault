@@ -79,6 +79,8 @@ add_executable(vault
 	src/app/main.cpp
 )
 
+set_target_properties(vault PROPERTIES OUTPUT_NAME libre-vault)
+
 target_link_libraries(vault
 	PRIVATE
 	vault_core

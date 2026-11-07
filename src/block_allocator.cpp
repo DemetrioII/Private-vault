@@ -17,7 +17,7 @@ std::expected<std::vector<std::size_t>, BlockAllocatorError> BlockAllocator::all
 
   int k = 0;
 
-  for (size_t i = 0; i < capacity_ && k < count; ++i) {
+  for (std::size_t i = 0; i < capacity_ && k < count; ++i) {
     const std::size_t byte_index = i / 8;
     const std::size_t bit_index = i % 8;
 
@@ -58,6 +58,25 @@ std::expected<void, BlockAllocatorError> BlockAllocator::release(const std::vect
   for (const auto index : blocks) {
     bitmap_[index / 8] &= static_cast<unsigned char>(~(1u << (index % 8)));
   }
+
+  return {};
+}
+
+std::expected<void, BlockAllocatorError> BlockAllocator::reserve(std::size_t index) {
+  if (index >= capacity_) {
+    return std::unexpected(BlockAllocatorError::InvalidIndex);
+  }
+
+  const std::size_t byte_index = index / 8;
+  const std::size_t bit_index = index % 8;
+  const auto mask = static_cast<unsigned char>(1u << bit_index);
+
+  if ((bitmap_[byte_index] & mask) != 0) {
+    return std::unexpected(BlockAllocatorError::AlreadyAllocated);
+  }
+
+  bitmap_[byte_index] |= mask;
+  --free_blocks_;
 
   return {};
 }
